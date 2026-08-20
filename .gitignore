@@ -1,3 +1,26 @@
-# Godot 4+ specific ignores
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Godot
 .godot/
-/android/
+client/.godot/
+client/android/
+client/build/
+
+# Spring Boot / SQLite
+server/target/
+server/*.db
+server/*.db-shm
+server/*.db-wal
+
+# Fantastic-admin / Node
+admin/node_modules/
+admin/**/dist/
+admin/.turbo/
+
+# Editors and operating systems
+.idea/
+Thumbs.db
+.DS_Store

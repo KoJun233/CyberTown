@@ -1,0 +1,45 @@
+# 本地开发
+
+## 已固定版本
+
+- Godot 4.7.2 stable，Compatibility 渲染器。
+- Oracle JDK 21。
+- Spring Boot 3.5.8。
+- Node.js 24.19.0 与 pnpm 11.19.0。
+- Fantastic-admin 6.3.0 stable。
+- Android Platform 35/36、Build Tools 35.0.1/36.0.0、NDK r28b、CMake 3.10.2。Godot 4.7.2 的预编译模板目标为 Android SDK 36。
+
+## 服务端
+
+复制 `.env.example` 中的值到当前 shell 环境，不要提交真实密钥。首次启动必须提供 `CYBERTOWN_BOOTSTRAP_INVITE_CODE`，服务端会把它哈希后写入数据库。
+
+```powershell
+cd server
+$env:CYBERTOWN_BOOTSTRAP_INVITE_CODE='local-invite'
+.\mvnw.cmd spring-boot:run
+```
+
+不设置 `DEEPSEEK_API_KEY` 时，当前原型只运行确定性模拟器，适合本地开发。
+
+## 客户端
+
+桌面调试使用 `127.0.0.1:8080`。Android 真机无法用 `127.0.0.1` 访问电脑，需要把 `cybertown/api_base_url` 改为同一局域网内电脑的 IPv4 地址，并允许 Windows 防火墙的 8080 入站连接。
+
+```powershell
+& 'E:\Godot\Godot.exe' --headless --path client --editor --quit
+& 'E:\Godot\Godot.exe' --headless --path client --quit-after 2
+```
+
+## 管理后台
+
+```powershell
+cd admin
+pnpm install --frozen-lockfile
+pnpm dev
+```
+
+后台采用多应用 monorepo。CyberTown 业务模块只会落到选定的一个 `admin/apps/<app>` 中，不会修改框架内建组件。
+
+## Git
+
+远端 `origin` 指向 `https://github.com/KoJun233/CyberTown.git`。本地可以提交里程碑，但推送远端前需要再次明确确认。真实密钥、SQLite 数据库、构建产物和依赖目录均已忽略。
