@@ -1,15 +1,21 @@
 extends Control
 
-const BG_COLOR := Color("10131f")
-const PANEL_COLOR := Color("1b2033")
-const ACCENT_COLOR := Color("5eead4")
-const TEXT_COLOR := Color("e7f7f5")
-const MUTED_COLOR := Color("9aa9b8")
+const BG := Color("10131f")
+const GOLD := Color("ffe29a")
+const PAPER := Color("f4dfaa")
+const INK := Color("3b2d2a")
+const TEXT := Color("fff8df")
+const MUTED := Color("aebbc8")
+const EDGE := Color("6b4f3b")
 
 var api: CyberTownApiClient
 var session := SessionStore.new()
+var screen: Control
 var content: VBoxContainer
 var status_label: Label
+var modal: Control
+var toast: Label
+var resident: Dictionary = {}
 var busy := false
 
 
@@ -18,86 +24,87 @@ func _ready() -> void:
 	add_child(api)
 	session.load_session()
 	api.access_token = session.access_token
-	_build_shell()
 	if session.access_token.is_empty():
 		_show_auth()
 	else:
 		_show_dashboard()
 
 
-func _build_shell() -> void:
+func _reset_screen() -> void:
+	if is_instance_valid(screen):
+		remove_child(screen)
+		screen.queue_free()
+	screen = Control.new()
+	screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(screen)
+	content = null
+	status_label = null
+	modal = null
+	toast = null
+
+
+func _build_form_shell() -> void:
+	_reset_screen()
 	var background := ColorRect.new()
-	background.color = BG_COLOR
+	background.color = BG
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(background)
-
-	var safe_margin := MarginContainer.new()
-	safe_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	safe_margin.add_theme_constant_override("margin_left", 24)
-	safe_margin.add_theme_constant_override("margin_right", 24)
-	safe_margin.add_theme_constant_override("margin_top", 16)
-	safe_margin.add_theme_constant_override("margin_bottom", 16)
-	add_child(safe_margin)
-
-	var root_column := VBoxContainer.new()
-	root_column.add_theme_constant_override("separation", 12)
-	safe_margin.add_child(root_column)
-
+	screen.add_child(background)
+	var margin := MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	for side in ["left", "right"]:
+		margin.add_theme_constant_override("margin_%s" % side, 24)
+	margin.add_theme_constant_override("margin_top", 16)
+	margin.add_theme_constant_override("margin_bottom", 16)
+	screen.add_child(margin)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 10)
+	margin.add_child(column)
 	var title := Label.new()
 	title.text = "赛博小镇  CYBERTOWN"
-	title.add_theme_color_override("font_color", ACCENT_COLOR)
+	title.add_theme_color_override("font_color", GOLD)
 	title.add_theme_font_size_override("font_size", 24)
-	root_column.add_child(title)
-
+	column.add_child(title)
 	var subtitle := Label.new()
-	subtitle.text = "让你的 AI 居民在霓虹灯下继续生活"
-	subtitle.add_theme_color_override("font_color", MUTED_COLOR)
-	root_column.add_child(subtitle)
-
-	var separator := HSeparator.new()
-	root_column.add_child(separator)
-
+	subtitle.text = "让你的 AI 居民在小镇里继续生活"
+	subtitle.add_theme_color_override("font_color", MUTED)
+	column.add_child(subtitle)
+	column.add_child(HSeparator.new())
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root_column.add_child(scroll)
-
+	column.add_child(scroll)
 	content = VBoxContainer.new()
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.add_theme_constant_override("separation", 10)
 	scroll.add_child(content)
-
 	status_label = Label.new()
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	status_label.add_theme_color_override("font_color", MUTED_COLOR)
-	root_column.add_child(status_label)
+	status_label.add_theme_color_override("font_color", MUTED)
+	column.add_child(status_label)
 
 
 func _show_auth() -> void:
-	_clear_content()
+	_build_form_shell()
 	_add_heading("使用邀请码进入小镇")
-	_add_paragraph("测试阶段不使用邮箱。注册成功后请立即保存恢复码。")
-
-	var invite := _add_line_edit("邀请码")
-	var username := _add_line_edit("用户名（3–20 位小写字母、数字或下划线）")
-	var display_name := _add_line_edit("居民名称")
+	_add_text("测试阶段不使用邮箱。注册成功后请立即保存恢复码。")
+	var invite := _add_input("邀请码")
+	var username := _add_input("用户名（3–20 位小写字母、数字或下划线）")
+	var display_name := _add_input("居民名称")
 	var privacy := CheckBox.new()
 	privacy.text = "我已阅读并同意测试与隐私说明"
-	privacy.button_pressed = false
 	content.add_child(privacy)
-
-	var register_button := _add_button("生成我的居民")
-	register_button.pressed.connect(func() -> void:
+	var register := _form_button("生成我的居民")
+	register.pressed.connect(func() -> void:
 		if busy:
 			return
 		if not privacy.button_pressed:
 			_set_status("请先同意测试与隐私说明", true)
 			return
 		busy = true
-		register_button.disabled = true
+		register.disabled = true
 		_set_status("正在创建居民…")
 		var result := await api.register(invite.text, username.text, display_name.text)
 		busy = false
-		register_button.disabled = false
+		register.disabled = false
 		if not result.ok:
 			_set_status(result.message, true)
 			return
@@ -106,21 +113,19 @@ func _show_auth() -> void:
 		api.access_token = session.access_token
 		_show_recovery_code(str(data.recoveryCode))
 	)
-
-	var recover_separator := HSeparator.new()
-	content.add_child(recover_separator)
+	content.add_child(HSeparator.new())
 	_add_heading("已有居民？")
-	var recover_username := _add_line_edit("用户名")
-	var recovery_code := _add_line_edit("恢复码")
-	var recover_button := _add_button("恢复账号")
-	recover_button.pressed.connect(func() -> void:
+	var recover_name := _add_input("用户名")
+	var recovery_code := _add_input("恢复码")
+	var recover := _form_button("恢复账号")
+	recover.pressed.connect(func() -> void:
 		if busy:
 			return
 		busy = true
-		recover_button.disabled = true
-		var result := await api.recover(recover_username.text, recovery_code.text)
+		recover.disabled = true
+		var result := await api.recover(recover_name.text, recovery_code.text)
 		busy = false
-		recover_button.disabled = false
+		recover.disabled = false
 		if not result.ok:
 			_set_status(result.message, true)
 			return
@@ -132,136 +137,383 @@ func _show_auth() -> void:
 
 
 func _show_recovery_code(code: String) -> void:
-	_clear_content()
+	_build_form_shell()
 	_add_heading("居民创建成功")
-	_add_paragraph("这是唯一一次完整显示恢复码。请保存到安全位置：")
+	_add_text("这是唯一一次完整显示恢复码。请保存到安全位置：")
 	var code_label := Label.new()
 	code_label.text = code
 	code_label.selectable = true
-	code_label.add_theme_color_override("font_color", ACCENT_COLOR)
+	code_label.add_theme_color_override("font_color", GOLD)
 	code_label.add_theme_font_size_override("font_size", 20)
 	content.add_child(code_label)
-	var copy_button := _add_button("复制恢复码")
-	copy_button.pressed.connect(func() -> void:
+	var copy := _form_button("复制恢复码")
+	copy.pressed.connect(func() -> void:
 		DisplayServer.clipboard_set(code)
 		_set_status("恢复码已复制")
 	)
-	var continue_button := _add_button("我已保存，进入小镇")
-	continue_button.pressed.connect(_show_dashboard)
+	var enter := _form_button("我已保存，进入小镇")
+	enter.pressed.connect(_show_dashboard)
 
 
 func _show_dashboard() -> void:
-	_clear_content()
-	_add_heading("今日居民状态")
-	_set_status("正在连接小镇…")
-	var resident_result := await api.get_resident()
-	if not resident_result.ok and int(resident_result.status) == 401 and not session.refresh_token.is_empty():
-		var refresh_result := await api.refresh_session(session.refresh_token)
-		if refresh_result.ok:
-			var refresh_data: Dictionary = refresh_result.data
-			session.save_session(str(refresh_data.accessToken), str(refresh_data.refreshToken), session.username)
+	_show_loading()
+	var result := await api.get_resident()
+	if not result.ok and int(result.status) in [401, 403] and not session.refresh_token.is_empty():
+		var refresh := await api.refresh_session(session.refresh_token)
+		if refresh.ok:
+			var data: Dictionary = refresh.data
+			session.save_session(str(data.accessToken), str(data.refreshToken), session.username)
 			api.access_token = session.access_token
-			resident_result = await api.get_resident()
-	if not resident_result.ok:
-		_set_status(resident_result.message, true)
-		var retry := _add_button("返回登录")
-		retry.pressed.connect(func() -> void:
+			result = await api.get_resident()
+	if not result.ok:
+		_build_form_shell()
+		_add_heading("暂时无法进入小镇")
+		_add_text(str(result.message))
+		var back := _form_button("返回登录")
+		back.pressed.connect(func() -> void:
 			session.clear()
 			api.access_token = ""
 			_show_auth()
 		)
 		return
+	resident = result.data
+	_build_map()
 
-	var resident: Dictionary = resident_result.data
-	_add_stat_row("居民", str(resident.displayName))
-	_add_stat_row("背景", str(resident.backgroundKey))
-	_add_stat_row("金币", str(resident.coins))
-	_add_stat_row("精力", str(resident.energy))
-	_add_stat_row("心情", str(resident.mood))
-	_add_stat_row("位置", str(resident.locationKey))
 
-	_add_heading("小镇现场")
-	_add_paragraph("点击道路或草地，让居民走到目标位置。当前是可交互的像素占位场景。")
+func _show_loading() -> void:
+	_reset_screen()
+	var background := ColorRect.new()
+	background.color = Color("244334")
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	screen.add_child(background)
+	var label := Label.new()
+	label.text = "正在进入小镇…"
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_color_override("font_color", TEXT)
+	label.add_theme_font_size_override("font_size", 22)
+	label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	screen.add_child(label)
+
+
+func _build_map() -> void:
+	_reset_screen()
 	var town := TownView.new()
-	town.configure(str(resident.displayName), int(resident.appearanceSeed))
-	content.add_child(town)
+	town.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	town.configure(str(resident.get("displayName", "居民")), int(resident.get("appearanceSeed", 1)))
+	screen.add_child(town)
+	_build_top_hud()
+	_build_toolbar()
+	toast = Label.new()
+	toast.text = "点击地图，让居民在小镇中移动"
+	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	toast.add_theme_color_override("font_color", TEXT)
+	toast.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
+	toast.add_theme_constant_override("shadow_offset_x", 1)
+	toast.add_theme_constant_override("shadow_offset_y", 1)
+	toast.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	toast.position = Vector2(-180, 64)
+	toast.size = Vector2(360, 24)
+	toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	screen.add_child(toast)
 
-	var separator := HSeparator.new()
-	content.add_child(separator)
-	_add_heading("今天想让居民做什么？")
-	var goal_input := TextEdit.new()
-	goal_input.placeholder_text = "例如：今天努力赚钱，但不要透支精力"
-	goal_input.custom_minimum_size.y = 72
-	content.add_child(goal_input)
-	var goal_button := _add_button("确认今日目标")
-	goal_button.pressed.connect(func() -> void:
-		if busy:
+
+func _build_top_hud() -> void:
+	var day := PanelContainer.new()
+	day.add_theme_stylebox_override("panel", _panel_style(PAPER))
+	day.position = Vector2(10, 8)
+	day.size = Vector2(164, 50)
+	screen.add_child(day)
+	var day_row := HBoxContainer.new()
+	day_row.add_theme_constant_override("separation", 8)
+	day.add_child(day_row)
+	var sun := Label.new()
+	sun.text = "☀"
+	sun.add_theme_font_size_override("font_size", 24)
+	sun.add_theme_color_override("font_color", Color("d17a34"))
+	day_row.add_child(sun)
+	var day_text := Label.new()
+	day_text.text = "小镇 · 今日\n白天  06:00"
+	day_text.add_theme_color_override("font_color", INK)
+	day_row.add_child(day_text)
+
+	var resources := PanelContainer.new()
+	resources.add_theme_stylebox_override("panel", _panel_style(PAPER))
+	resources.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	resources.position = Vector2(-218, 8)
+	resources.size = Vector2(208, 50)
+	screen.add_child(resources)
+	var values := HBoxContainer.new()
+	values.alignment = BoxContainer.ALIGNMENT_CENTER
+	values.add_theme_constant_override("separation", 12)
+	resources.add_child(values)
+	values.add_child(_hud_value("◎", str(int(resident.get("coins", 0))), Color("b96b25")))
+	values.add_child(_hud_value("⚡", str(int(resident.get("energy", 0))), Color("487a42")))
+	values.add_child(_hud_value("♥", str(int(resident.get("mood", 0))), Color("b84f58")))
+
+
+func _build_toolbar() -> void:
+	var toolbar := PanelContainer.new()
+	toolbar.add_theme_stylebox_override("panel", _panel_style(Color("e9c984")))
+	toolbar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	toolbar.position = Vector2(-176, -58)
+	toolbar.size = Vector2(352, 50)
+	screen.add_child(toolbar)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 5)
+	toolbar.add_child(row)
+	for definition in [
+		["居民状态", _show_resident_panel],
+		["今日目标", _show_goal_panel],
+		["居民经历", _show_report_panel],
+		["离开", _show_leave_panel],
+	]:
+		var button := _map_button(definition[0])
+		button.pressed.connect(definition[1])
+		row.add_child(button)
+
+
+func _hud_value(icon: String, value: String, color: Color) -> Control:
+	var box := HBoxContainer.new()
+	box.add_theme_constant_override("separation", 3)
+	var icon_label := Label.new()
+	icon_label.text = icon
+	icon_label.add_theme_color_override("font_color", color)
+	var value_label := Label.new()
+	value_label.text = value
+	value_label.add_theme_color_override("font_color", INK)
+	box.add_child(icon_label)
+	box.add_child(value_label)
+	return box
+
+
+func _panel_style(fill: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = fill
+	style.border_color = EDGE
+	style.set_border_width_all(3)
+	style.set_corner_radius_all(3)
+	style.content_margin_left = 8
+	style.content_margin_right = 8
+	style.content_margin_top = 5
+	style.content_margin_bottom = 5
+	return style
+
+
+func _map_button(text_value: String) -> Button:
+	var button := Button.new()
+	button.text = text_value
+	button.custom_minimum_size = Vector2(80, 34)
+	button.add_theme_font_size_override("font_size", 12)
+	button.add_theme_color_override("font_color", INK)
+	button.add_theme_color_override("font_hover_color", INK)
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color("f8e6b2")
+	normal.border_color = Color("9b6d45")
+	normal.set_border_width_all(2)
+	normal.set_corner_radius_all(2)
+	var hover: StyleBoxFlat = normal.duplicate()
+	hover.bg_color = Color("fff3c9")
+	button.add_theme_stylebox_override("normal", normal)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", hover)
+	return button
+
+
+func _open_modal(title_text: String) -> VBoxContainer:
+	_close_modal()
+	modal = Control.new()
+	modal.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	modal.mouse_filter = Control.MOUSE_FILTER_STOP
+	screen.add_child(modal)
+	var shade := ColorRect.new()
+	shade.color = Color(0.03, 0.05, 0.08, 0.58)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	modal.add_child(shade)
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _panel_style(Color("f8e8ba")))
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.position = Vector2(-190, -130)
+	panel.size = Vector2(380, 260)
+	modal.add_child(panel)
+	var margin := MarginContainer.new()
+	for side in ["left", "right"]:
+		margin.add_theme_constant_override("margin_%s" % side, 10)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	panel.add_child(margin)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 7)
+	margin.add_child(column)
+	var title := Label.new()
+	title.text = title_text
+	title.add_theme_font_size_override("font_size", 19)
+	title.add_theme_color_override("font_color", INK)
+	column.add_child(title)
+	column.add_child(HSeparator.new())
+	var body := VBoxContainer.new()
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation", 6)
+	column.add_child(body)
+	var close := _map_button("关闭")
+	close.custom_minimum_size.y = 30
+	close.pressed.connect(_close_modal)
+	column.add_child(close)
+	return body
+
+
+func _close_modal() -> void:
+	if is_instance_valid(modal):
+		modal.queue_free()
+	modal = null
+
+
+func _show_resident_panel() -> void:
+	var body := _open_modal("居民状态 · %s" % str(resident.get("displayName", "居民")))
+	for item in [
+		["当前位置", _location_name(str(resident.get("locationKey", "")))],
+		["生活背景", _background_name(str(resident.get("backgroundKey", "")))],
+		["金币", resident.get("coins", 0)],
+		["精力", resident.get("energy", 0)],
+		["心情", resident.get("mood", 0)],
+	]:
+		body.add_child(_stat_row(str(item[0]), str(item[1])))
+
+
+func _show_goal_panel() -> void:
+	var body := _open_modal("给居民安排今日目标")
+	var hint := Label.new()
+	hint.text = "居民会在后续行动时段参考你的安排。"
+	hint.add_theme_color_override("font_color", INK)
+	body.add_child(hint)
+	var input := TextEdit.new()
+	input.placeholder_text = "例如：去认识邻居，但不要耗尽精力"
+	input.custom_minimum_size.y = 88
+	input.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_child(input)
+	var submit := _map_button("确认目标")
+	submit.pressed.connect(func() -> void:
+		if busy or input.text.strip_edges().is_empty():
 			return
 		busy = true
-		goal_button.disabled = true
-		var result := await api.set_goal(goal_input.text)
+		submit.disabled = true
+		var result := await api.set_goal(input.text.strip_edges())
 		busy = false
-		goal_button.disabled = false
-		_set_status("目标已确认，将从下一个行动时段生效" if result.ok else result.message, not result.ok)
+		if result.ok:
+			_close_modal()
+			_show_toast("目标已记录，将从下一个行动时段生效")
+		else:
+			submit.disabled = false
+			_show_toast(str(result.message), true)
 	)
+	body.add_child(submit)
 
-	var report_button := _add_button("查看今日日报")
-	report_button.pressed.connect(_show_report)
-	var logout_button := _add_button("退出本机账号")
-	logout_button.pressed.connect(func() -> void:
+
+func _show_report_panel() -> void:
+	var body := _open_modal("居民经历 · 今日")
+	var loading := Label.new()
+	loading.text = "正在翻阅居民日记…"
+	loading.add_theme_color_override("font_color", INK)
+	body.add_child(loading)
+	var result := await api.get_today_report()
+	if not is_instance_valid(body):
+		return
+	loading.queue_free()
+	if not result.ok:
+		body.add_child(_dark_label(str(result.message)))
+		return
+	var report: Dictionary = result.data
+	body.add_child(_dark_label("今日目标：%s" % (str(report.goal) if report.get("goal") != null else "尚未设置")))
+	var actions: Array = report.get("actions", [])
+	if actions.is_empty():
+		body.add_child(_dark_label("今天还没有行动记录。居民会在下一个时段继续生活。"))
+	else:
+		var scroll := ScrollContainer.new()
+		scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		body.add_child(scroll)
+		var list := VBoxContainer.new()
+		list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		scroll.add_child(list)
+		for action: Dictionary in actions:
+			list.add_child(_dark_label("• %s  %s  %s" % [action.get("timeSlot", ""), action.get("actionType", ""), action.get("status", "")]))
+
+
+func _show_leave_panel() -> void:
+	var body := _open_modal("离开小镇")
+	body.add_child(_dark_label("退出后，本机保存的登录信息会被清除。"))
+	var logout := _map_button("退出本机账号")
+	logout.pressed.connect(func() -> void:
 		session.clear()
 		api.access_token = ""
 		_show_auth()
 	)
-	_set_status("已连接小镇")
+	body.add_child(logout)
 
 
-func _show_report() -> void:
-	_clear_content()
-	_add_heading("今日日报")
-	var result := await api.get_today_report()
-	if not result.ok:
-		_set_status(result.message, true)
-		var back_error := _add_button("返回")
-		back_error.pressed.connect(_show_dashboard)
-		return
-	var report: Dictionary = result.data
-	_add_stat_row("小镇日期", str(report.townDate))
-	_add_stat_row("今日目标", str(report.goal) if report.goal != null else "尚未设置")
-	var actions: Array = report.get("actions", [])
-	if actions.is_empty():
-		_add_paragraph("今天还没有完成的行动。居民会在下一个时段继续生活。")
-	else:
-		for action: Dictionary in actions:
-			_add_paragraph("%s · %s · %s" % [action.timeSlot, action.actionType, action.status])
-	var back := _add_button("返回居民状态")
-	back.pressed.connect(_show_dashboard)
-	_set_status("日报已更新")
+func _stat_row(name: String, value: String) -> Control:
+	var row := HBoxContainer.new()
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var label := _dark_label(name)
+	label.custom_minimum_size.x = 100
+	label.add_theme_color_override("font_color", Color("765a45"))
+	var value_label := _dark_label(value)
+	value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(label)
+	row.add_child(value_label)
+	return row
 
 
-func _clear_content() -> void:
-	for child in content.get_children():
-		child.queue_free()
-	_set_status("")
+func _location_name(key: String) -> String:
+	return str({
+		"residential": "住宅区",
+		"square": "中心广场",
+		"workshop": "工坊",
+	}.get(key, key if not key.is_empty() else "小镇"))
 
 
-func _add_heading(text: String) -> void:
+func _background_name(key: String) -> String:
+	return str({
+		"corporate_clerk": "公司职员",
+		"repair_apprentice": "维修学徒",
+		"street_artist": "街头艺术家",
+		"data_archivist": "数据档案员",
+		"courier": "快递员",
+		"traveler": "旅行者",
+	}.get(key, key if not key.is_empty() else "未知"))
+
+
+func _dark_label(value: String) -> Label:
 	var label := Label.new()
-	label.text = text
-	label.add_theme_color_override("font_color", TEXT_COLOR)
+	label.text = value
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.add_theme_color_override("font_color", INK)
+	return label
+
+
+func _show_toast(message: String, is_error := false) -> void:
+	if is_instance_valid(toast):
+		toast.text = message
+		toast.add_theme_color_override("font_color", Color("ff9d9d") if is_error else TEXT)
+
+
+func _add_heading(value: String) -> void:
+	var label := Label.new()
+	label.text = value
+	label.add_theme_color_override("font_color", TEXT)
 	label.add_theme_font_size_override("font_size", 20)
 	content.add_child(label)
 
 
-func _add_paragraph(text: String) -> void:
+func _add_text(value: String) -> void:
 	var label := Label.new()
-	label.text = text
+	label.text = value
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.add_theme_color_override("font_color", MUTED_COLOR)
+	label.add_theme_color_override("font_color", MUTED)
 	content.add_child(label)
 
 
-func _add_line_edit(placeholder: String) -> LineEdit:
+func _add_input(placeholder: String) -> LineEdit:
 	var input := LineEdit.new()
 	input.placeholder_text = placeholder
 	input.custom_minimum_size.y = 40
@@ -269,30 +521,15 @@ func _add_line_edit(placeholder: String) -> LineEdit:
 	return input
 
 
-func _add_button(text: String) -> Button:
+func _form_button(value: String) -> Button:
 	var button := Button.new()
-	button.text = text
+	button.text = value
 	button.custom_minimum_size.y = 42
 	content.add_child(button)
 	return button
 
 
-func _add_stat_row(label_text: String, value_text: String) -> void:
-	var row := HBoxContainer.new()
-	var label := Label.new()
-	label.text = label_text
-	label.custom_minimum_size.x = 96
-	label.add_theme_color_override("font_color", MUTED_COLOR)
-	var value := Label.new()
-	value.text = value_text
-	value.add_theme_color_override("font_color", TEXT_COLOR)
-	row.add_child(label)
-	row.add_child(value)
-	content.add_child(row)
-
-
 func _set_status(message: String, is_error := false) -> void:
-	if not is_instance_valid(status_label):
-		return
-	status_label.text = message
-	status_label.add_theme_color_override("font_color", Color("fb7185") if is_error else MUTED_COLOR)
+	if is_instance_valid(status_label):
+		status_label.text = message
+		status_label.add_theme_color_override("font_color", Color("fb7185") if is_error else MUTED)

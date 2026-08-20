@@ -28,7 +28,7 @@ $env:CYBERTOWN_BOOTSTRAP_INVITE_CODE='local-invite'
 .\mvnw.cmd spring-boot:run
 ```
 
-Godot 客户端：用 Godot 4.7.2 打开 `client/project.godot`。本地 API 默认是 `http://127.0.0.1:8080/api`；在 Android 真机上需改为电脑在局域网中的地址。
+Godot 客户端：用 Godot 4.7.2 打开 `client/project.godot`。当前本机 API 使用 `http://127.0.0.1:18080/api`，避开已占用的 8080；在 Android 真机上需改为电脑在局域网中的地址。
 
 服务端测试：
 

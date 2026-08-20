@@ -7,6 +7,9 @@ var base_url := "http://127.0.0.1:8080/api"
 
 func _ready() -> void:
 	base_url = str(ProjectSettings.get_setting("cybertown/api_base_url", base_url)).trim_suffix("/")
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--api-base-url="):
+			base_url = argument.trim_prefix("--api-base-url=").trim_suffix("/")
 
 
 func register(invite_code: String, username: String, display_name: String) -> Dictionary:
@@ -62,7 +65,7 @@ func _request_json(method: HTTPClient.Method, path: String, payload: Dictionary 
 	var response_code := int(response[1])
 	var raw_body: PackedByteArray = response[3]
 	var text := raw_body.get_string_from_utf8()
-	var parsed: Variant = JSON.parse_string(text)
+	var parsed: Variant = JSON.parse_string(text) if not text.strip_edges().is_empty() else null
 	var data: Dictionary = parsed if parsed is Dictionary else {}
 	if response_code >= 200 and response_code < 300:
 		return {"ok": true, "status": response_code, "data": data}

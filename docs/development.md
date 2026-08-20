@@ -16,6 +16,7 @@
 
 ```powershell
 cd server
+$env:SERVER_PORT='18080'
 $env:CYBERTOWN_BOOTSTRAP_INVITE_CODE='local-invite'
 .\mvnw.cmd spring-boot:run
 ```
@@ -24,11 +25,17 @@ $env:CYBERTOWN_BOOTSTRAP_INVITE_CODE='local-invite'
 
 ## 客户端
 
-桌面调试使用 `127.0.0.1:8080`。Android 真机无法用 `127.0.0.1` 访问电脑，需要把 `cybertown/api_base_url` 改为同一局域网内电脑的 IPv4 地址，并允许 Windows 防火墙的 8080 入站连接。
+当前本机桌面调试使用 `127.0.0.1:18080`，避开已被其他程序占用的 8080。Android 真机无法用 `127.0.0.1` 访问电脑，需要把 `cybertown/api_base_url` 改为同一局域网内电脑的 IPv4 地址，并允许 Windows 防火墙对应端口的入站连接。
 
 ```powershell
 & 'E:\Godot\Godot.exe' --headless --path client --editor --quit
 & 'E:\Godot\Godot.exe' --headless --path client --quit-after 2
+```
+
+本地端口被占用时，可以只为本次运行覆盖 API 地址：
+
+```powershell
+& 'E:\Godot\Godot.exe' --path client -- --api-base-url=http://127.0.0.1:18080/api
 ```
 
 ## 管理后台
