@@ -180,6 +180,12 @@ func _show_dashboard() -> void:
 	_add_stat_row("心情", str(resident.mood))
 	_add_stat_row("位置", str(resident.locationKey))
 
+	_add_heading("小镇现场")
+	_add_paragraph("点击道路或草地，让居民走到目标位置。当前是可交互的像素占位场景。")
+	var town := TownView.new()
+	town.configure(str(resident.displayName), int(resident.appearanceSeed))
+	content.add_child(town)
+
 	var separator := HSeparator.new()
 	content.add_child(separator)
 	_add_heading("今天想让居民做什么？")

@@ -8,6 +8,7 @@
 - Node.js 24.19.0 与 pnpm 11.19.0。
 - Fantastic-admin 6.3.0 stable。
 - Android Platform 35/36、Build Tools 35.0.1/36.0.0、NDK r28b、CMake 3.10.2。Godot 4.7.2 的预编译模板目标为 Android SDK 36。
+- Android Studio 2026.1.3.7（Quail 3）。
 
 ## 服务端
 
