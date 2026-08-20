@@ -20,12 +20,14 @@ public class SimulationService {
 
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
+    private final AiActionPlanner aiActionPlanner;
     private final ZoneId townZone;
 
-    public SimulationService(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper,
+    public SimulationService(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper, AiActionPlanner aiActionPlanner,
             @Value("${cybertown.town-zone:Asia/Shanghai}") String townZone) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
+        this.aiActionPlanner = aiActionPlanner;
         this.townZone = ZoneId.of(townZone);
     }
 
@@ -34,12 +36,16 @@ public class SimulationService {
         String townDate = LocalDate.now(townZone).toString();
         String activeAfter = Instant.now().minus(7, ChronoUnit.DAYS).toString();
         List<ResidentRow> residents = jdbcTemplate.query("""
-                SELECT id, energy, mood, coins FROM resident
+                SELECT id, energy, mood, coins,
+                       personality_social, personality_curiosity, personality_order
+                FROM resident
                 WHERE last_active_at >= ? AND account_id IN (
                     SELECT id FROM account WHERE status IN ('ACTIVE', 'MUTED'))
                 """, (resultSet, row) -> new ResidentRow(
                 resultSet.getString("id"), resultSet.getInt("energy"),
-                resultSet.getInt("mood"), resultSet.getInt("coins")), activeAfter);
+                resultSet.getInt("mood"), resultSet.getInt("coins"),
+                resultSet.getInt("personality_social"), resultSet.getInt("personality_curiosity"),
+                resultSet.getInt("personality_order")), activeAfter);
         int completed = 0;
         for (ResidentRow resident : residents) {
             Integer existing = jdbcTemplate.queryForObject("""
@@ -53,7 +59,11 @@ public class SimulationService {
                     SELECT raw_instruction FROM daily_goal
                     WHERE resident_id = ? AND town_date = ?
                     """, resultSet -> resultSet.next() ? resultSet.getString(1) : "", resident.id(), townDate);
-            String action = chooseAction(goal, slot, resident.energy());
+            String fallbackAction = chooseAction(goal, slot, resident.energy());
+            String action = aiActionPlanner.chooseAction(new AiActionPlanner.PlanningRequest(
+                    resident.id(), slot, goal, resident.energy(), resident.mood(), resident.coins(),
+                    resident.personalitySocial(), resident.personalityCuriosity(), resident.personalityOrder()))
+                    .orElse(fallbackAction);
             Outcome outcome = applyOutcome(action, resident);
             String outcomeJson = toJson(Map.of(
                     "coins", outcome.coins(),
@@ -129,7 +139,14 @@ public class SimulationService {
         }
     }
 
-    private record ResidentRow(String id, int energy, int mood, int coins) {}
+    private record ResidentRow(
+            String id,
+            int energy,
+            int mood,
+            int coins,
+            int personalitySocial,
+            int personalityCuriosity,
+            int personalityOrder) {}
 
     private record Outcome(int coins, int energy, int mood, String location, String narrative) {}
 }

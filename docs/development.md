@@ -19,7 +19,7 @@ $env:CYBERTOWN_BOOTSTRAP_INVITE_CODE='local-invite'
 .\mvnw.cmd spring-boot:run
 ```
 
-不设置 `DEEPSEEK_API_KEY` 时，当前原型只运行确定性模拟器，适合本地开发。
+不设置 `DEEPSEEK_API_KEY` 或保持 `CYBERTOWN_AI_ENABLED=false` 时，当前原型只运行确定性模拟器，适合本地开发。需要联调 DeepSeek 时同时设置密钥并把该开关改为 `true`；模型输出仅能选择行动，不能直接修改游戏数值。
 
 ## 客户端
 

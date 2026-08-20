@@ -25,7 +25,9 @@ Fantastic-admin operations console
 
 ## AI 降级
 
-目标模型为 DeepSeek `deepseek-v4-flash`，关闭思考模式。任何无密钥、超预算、超频、超时、非 JSON 或规则冲突都必须切换到服务端规则引擎，保证居民仍会行动。模型调用按居民和日期记账，硬上限为每日 4 次。
+目标模型为 DeepSeek `deepseek-v4-flash`，请求明确发送 `thinking.type=disabled` 并启用 JSON 输出。任何无密钥、未启用 AI、超预算、超频、超时、非 JSON 或规则冲突都必须切换到服务端规则引擎，保证居民仍会行动。模型只能选择五种行动之一，数值和事实仍由服务端计算。模型调用按居民和日期记账，硬上限为每日 4 次，月度成本上限默认 200 元。
+
+服务端引入 Spring AI Alibaba 1.1.2.2 作为后续多居民事件编排框架。当前单居民行动选择使用 Spring AI 的 OpenAI 兼容模型适配器，因为它能显式透传 DeepSeek V4 所需的 `thinking` 开关；这与 Spring AI Alibaba 官方 DeepSeek 示例采用 Spring AI 模型适配器的方式一致。
 
 ## 数据与扩展
 

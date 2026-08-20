@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import com.cybertown.server.simulation.SimulationService;
+import com.cybertown.server.simulation.TimeSlot;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -39,6 +41,9 @@ class AuthFlowIntegrationTests {
     @Autowired
     TestRestTemplate restTemplate;
 
+    @Autowired
+    SimulationService simulationService;
+
     @Test
     void registrationGoalAndReportFlowWorks() {
         ResponseEntity<Map<String, Object>> registration = post("/api/auth/register", Map.of(
@@ -68,10 +73,13 @@ class AuthFlowIntegrationTests {
         assertThat(goal.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(goal.getBody()).containsEntry("instruction", "今天努力赚钱");
 
+        assertThat(simulationService.runSlot(TimeSlot.AFTERNOON)).isEqualTo(1);
+
         ResponseEntity<Map<String, Object>> report = exchange(
                 "/api/reports/today", HttpMethod.GET, new HttpEntity<>(headers));
         assertThat(report.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(report.getBody()).containsEntry("goal", "今天努力赚钱");
+        assertThat((List<?>) report.getBody().get("actions")).hasSize(1);
 
         ResponseEntity<Map<String, Object>> refreshed = post(
                 "/api/auth/refresh", Map.of("refreshToken", refreshToken));
