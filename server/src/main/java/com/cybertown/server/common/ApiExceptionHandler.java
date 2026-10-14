@@ -35,6 +35,16 @@ public class ApiExceptionHandler {
         return response(HttpStatus.UNAUTHORIZED, exception.getMessage());
     }
 
+    @ExceptionHandler(RateLimitException.class)
+    ResponseEntity<Map<String, Object>> handleRateLimit(RateLimitException exception) {
+        return response(HttpStatus.TOO_MANY_REQUESTS, exception.getMessage());
+    }
+
+    @ExceptionHandler(ForbiddenException.class)
+    ResponseEntity<Map<String, Object>> handleForbidden(ForbiddenException exception) {
+        return response(HttpStatus.FORBIDDEN, exception.getMessage());
+    }
+
     private ResponseEntity<Map<String, Object>> response(HttpStatus status, String message) {
         return ResponseEntity.status(status).body(Map.of(
                 "status", status.value(),

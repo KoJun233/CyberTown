@@ -84,6 +84,18 @@ public class SimulationService {
                     UPDATE resident SET coins = ?, energy = ?, mood = ?, location_key = ?, updated_at = ?
                     WHERE id = ?
                     """, outcome.coins(), outcome.energy(), outcome.mood(), outcome.location(), now.toString(), resident.id());
+            // Persist the offline action location so every client sees the same resident.
+            int offset = Math.floorMod(resident.id().hashCode(), 25) - 12;
+            double x = switch (outcome.location()) {
+                case "workshop" -> 462;
+                case "square" -> 336;
+                default -> 100;
+            };
+            double y = "residential".equals(outcome.location()) ? 136 : 205;
+            jdbcTemplate.update("""
+                    UPDATE resident_presence SET pos_x = ?, pos_y = ?, updated_at = ?
+                    WHERE resident_id = ?
+                    """, x + offset, y, now.toString(), resident.id());
             jdbcTemplate.update("""
                     INSERT INTO event_log(
                         id, event_type, town_date, resident_ids_json,

@@ -1,6 +1,7 @@
 package com.cybertown.server.config;
 
 import com.cybertown.server.security.BearerTokenFilter;
+import jakarta.servlet.DispatcherType;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,7 +31,13 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
+                .exceptionHandling(errors -> errors.authenticationEntryPoint((request, response, exception) -> {
+                    response.setStatus(401);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write("{\"status\":401,\"message\":\"登录已过期，请重新登录\"}");
+                }))
                 .authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(
                                 "/api/auth/**",
                                 "/api/health",

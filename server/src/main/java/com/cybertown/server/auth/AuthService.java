@@ -80,6 +80,11 @@ public class AuthService {
                 randomAxis(seed, 11), randomAxis(seed, 23), randomAxis(seed, 37),
                 seed, now.toString(), now.toString(), now.toString());
         jdbcTemplate.update("""
+                INSERT INTO resident_presence(resident_id, pos_x, pos_y, updated_at)
+                VALUES (?, ?, ?, ?)
+                """, residentId, 60 + Math.floorMod(seed, 520),
+                90 + Math.floorMod(seed / 7, 200), now.toString());
+        jdbcTemplate.update("""
                 INSERT INTO access_session(
                     id, account_id, access_token_hash, refresh_token_hash,
                     access_expires_at, refresh_expires_at, created_at)

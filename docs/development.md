@@ -12,6 +12,8 @@
 
 ## 服务端
 
+当前本机推荐在项目根目录手动执行 `.\scripts\start-local-server.ps1`。该脚本构建最新代码、使用 18080、保留已有测试数据库、关闭 AI，并创建两个一次性邻居邀请码。原服务需先在其终端按 Ctrl+C 停止。脚本只对本次 Java 进程指定 socket 临时目录，以兼容本机 JDK 的 Windows 临时路径。
+
 复制 `.env.example` 中的值到当前 shell 环境，不要提交真实密钥。首次启动必须提供 `CYBERTOWN_BOOTSTRAP_INVITE_CODE`，服务端会把它哈希后写入数据库。
 
 ```powershell
@@ -30,6 +32,8 @@ $env:CYBERTOWN_BOOTSTRAP_INVITE_CODE='local-invite'
 ```powershell
 & 'E:\Godot\Godot.exe' --headless --path client --editor --quit
 & 'E:\Godot\Godot.exe' --headless --path client --quit-after 2
+& 'E:\Godot\Godot.exe' --headless --path client --script res://tests/town_view_smoke.gd
+& 'E:\Godot\Godot.exe' --headless --path client --script res://tests/api_refresh_smoke.gd
 ```
 
 本地端口被占用时，可以只为本次运行覆盖 API 地址：
@@ -37,6 +41,8 @@ $env:CYBERTOWN_BOOTSTRAP_INVITE_CODE='local-invite'
 ```powershell
 & 'E:\Godot\Godot.exe' --path client -- --api-base-url=http://127.0.0.1:18080/api
 ```
+
+`--session-name=neighbor` 可为第二个 PC 窗口使用独立登录存档。多人显示、附近气泡和距离过滤的手动步骤见 [共享小镇测试](shared-town-test.md)。
 
 ## 管理后台
 

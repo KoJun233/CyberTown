@@ -17,13 +17,25 @@ var modal: Control
 var toast: Label
 var resident: Dictionary = {}
 var busy := false
+var town_view: TownView
+var map_generation := 0
+var syncing_generation := -1
+var date_label: Label
+var resource_labels: Dictionary = {}
 
 
 func _ready() -> void:
 	api = CyberTownApiClient.new()
 	add_child(api)
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--session-name="):
+			session.use_profile(argument.trim_prefix("--session-name="))
 	session.load_session()
 	api.access_token = session.access_token
+	api.refresh_token = session.refresh_token
+	api.session_refreshed.connect(func(access: String, refresh: String) -> void:
+		session.save_session(access, refresh, session.username)
+	)
 	if session.access_token.is_empty():
 		_show_auth()
 	else:
@@ -31,6 +43,10 @@ func _ready() -> void:
 
 
 func _reset_screen() -> void:
+	map_generation += 1
+	town_view = null
+	date_label = null
+	resource_labels.clear()
 	if is_instance_valid(screen):
 		remove_child(screen)
 		screen.queue_free()
@@ -111,6 +127,7 @@ func _show_auth() -> void:
 		var data: Dictionary = result.data
 		session.save_session(str(data.accessToken), str(data.refreshToken), str(data.username))
 		api.access_token = session.access_token
+		api.refresh_token = session.refresh_token
 		_show_recovery_code(str(data.recoveryCode))
 	)
 	content.add_child(HSeparator.new())
@@ -132,6 +149,7 @@ func _show_auth() -> void:
 		var data: Dictionary = result.data
 		session.save_session(str(data.accessToken), str(data.refreshToken), str(data.username))
 		api.access_token = session.access_token
+		api.refresh_token = session.refresh_token
 		_show_dashboard()
 	)
 
@@ -158,13 +176,6 @@ func _show_recovery_code(code: String) -> void:
 func _show_dashboard() -> void:
 	_show_loading()
 	var result := await api.get_resident()
-	if not result.ok and int(result.status) in [401, 403] and not session.refresh_token.is_empty():
-		var refresh := await api.refresh_session(session.refresh_token)
-		if refresh.ok:
-			var data: Dictionary = refresh.data
-			session.save_session(str(data.accessToken), str(data.refreshToken), session.username)
-			api.access_token = session.access_token
-			result = await api.get_resident()
 	if not result.ok:
 		_build_form_shell()
 		_add_heading("暂时无法进入小镇")
@@ -173,6 +184,7 @@ func _show_dashboard() -> void:
 		back.pressed.connect(func() -> void:
 			session.clear()
 			api.access_token = ""
+			api.refresh_token = ""
 			_show_auth()
 		)
 		return
@@ -199,6 +211,7 @@ func _show_loading() -> void:
 func _build_map() -> void:
 	_reset_screen()
 	var town := TownView.new()
+	town_view = town
 	town.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	town.configure(str(resident.get("displayName", "居民")), int(resident.get("appearanceSeed", 1)))
 	screen.add_child(town)
@@ -216,6 +229,48 @@ func _build_map() -> void:
 	toast.size = Vector2(360, 24)
 	toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	screen.add_child(toast)
+	var timer := Timer.new()
+	timer.wait_time = 3.0
+	timer.timeout.connect(_sync_town)
+	screen.add_child(timer)
+	timer.start()
+	_sync_town()
+
+
+func _sync_town() -> void:
+	var generation := map_generation
+	if not is_instance_valid(town_view) or syncing_generation == generation:
+		return
+	syncing_generation = generation
+	var active_town := town_view
+	if active_town.has_pending_position():
+		var position := active_town.resident_position
+		var update := await api.update_presence(position)
+		if generation != map_generation:
+			return
+		if update.ok:
+			active_town.confirm_position(position)
+		else:
+			_show_toast(str(update.message), true)
+	var snapshot := await api.get_town_snapshot()
+	if generation != map_generation:
+		return
+	syncing_generation = -1
+	if not snapshot.ok:
+		_show_toast("小镇同步失败：%s" % str(snapshot.message), true)
+		return
+	active_town.apply_snapshot(snapshot.data)
+	resident = snapshot.data.get("resident", resident)
+	_update_hud(snapshot.data)
+
+
+func _update_hud(snapshot: Dictionary) -> void:
+	if is_instance_valid(date_label):
+		var date := str(snapshot.get("townDate", "")).split("-")
+		var day := "%s月%s日" % [int(date[1]), int(date[2])] if date.size() == 3 else "今日"
+		date_label.text = "%s\n%s %s" % [day, snapshot.get("timeOfDay", ""), snapshot.get("townTime", "")]
+	for key: String in resource_labels:
+		resource_labels[key].text = str(int(resident.get(key, 0)))
 
 
 func _build_top_hud() -> void:
@@ -233,7 +288,9 @@ func _build_top_hud() -> void:
 	sun.add_theme_color_override("font_color", Color("d17a34"))
 	day_row.add_child(sun)
 	var day_text := Label.new()
-	day_text.text = "小镇 · 今日\n白天  06:00"
+	date_label = day_text
+	day_text.text = "小镇 · 今日\n正在同步时间"
+	day_text.add_theme_font_size_override("font_size", 14)
 	day_text.add_theme_color_override("font_color", INK)
 	day_row.add_child(day_text)
 
@@ -247,17 +304,17 @@ func _build_top_hud() -> void:
 	values.alignment = BoxContainer.ALIGNMENT_CENTER
 	values.add_theme_constant_override("separation", 12)
 	resources.add_child(values)
-	values.add_child(_hud_value("◎", str(int(resident.get("coins", 0))), Color("b96b25")))
-	values.add_child(_hud_value("⚡", str(int(resident.get("energy", 0))), Color("487a42")))
-	values.add_child(_hud_value("♥", str(int(resident.get("mood", 0))), Color("b84f58")))
+	values.add_child(_hud_value("◎", "coins", Color("b96b25")))
+	values.add_child(_hud_value("⚡", "energy", Color("487a42")))
+	values.add_child(_hud_value("♥", "mood", Color("b84f58")))
 
 
 func _build_toolbar() -> void:
 	var toolbar := PanelContainer.new()
 	toolbar.add_theme_stylebox_override("panel", _panel_style(Color("e9c984")))
 	toolbar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	toolbar.position = Vector2(-176, -58)
-	toolbar.size = Vector2(352, 50)
+	toolbar.position = Vector2(-218, -58)
+	toolbar.size = Vector2(436, 50)
 	screen.add_child(toolbar)
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -267,6 +324,7 @@ func _build_toolbar() -> void:
 		["居民状态", _show_resident_panel],
 		["今日目标", _show_goal_panel],
 		["居民经历", _show_report_panel],
+		["附近说话", _show_bubble_panel],
 		["离开", _show_leave_panel],
 	]:
 		var button := _map_button(definition[0])
@@ -274,14 +332,15 @@ func _build_toolbar() -> void:
 		row.add_child(button)
 
 
-func _hud_value(icon: String, value: String, color: Color) -> Control:
+func _hud_value(icon: String, key: String, color: Color) -> Control:
 	var box := HBoxContainer.new()
 	box.add_theme_constant_override("separation", 3)
 	var icon_label := Label.new()
 	icon_label.text = icon
 	icon_label.add_theme_color_override("font_color", color)
 	var value_label := Label.new()
-	value_label.text = value
+	value_label.text = str(int(resident.get(key, 0)))
+	resource_labels[key] = value_label
 	value_label.add_theme_color_override("font_color", INK)
 	box.add_child(icon_label)
 	box.add_child(value_label)
@@ -369,6 +428,68 @@ func _close_modal() -> void:
 	modal = null
 
 
+func _show_bubble_panel() -> void:
+	var body := _open_modal("在居民身旁说句话")
+	var active_modal := modal
+	body.add_child(_dark_label("附近的居民能看到这条气泡，18 秒后消失。每 10 秒可发送一次，最多 60 字。"))
+	var input := LineEdit.new()
+	input.placeholder_text = "和附近的邻居打个招呼…"
+	input.max_length = 60
+	input.custom_minimum_size.y = 36
+	body.add_child(input)
+	var feedback := _dark_label("")
+	body.add_child(feedback)
+	var submit := _map_button("发送气泡")
+	submit.pressed.connect(func() -> void:
+		if busy:
+			return
+		var message := input.text.strip_edges()
+		if message.is_empty():
+			feedback.text = "请先写一句话"
+			return
+		busy = true
+		submit.disabled = true
+		var generation := map_generation
+		if not is_instance_valid(town_view) or not town_view.initialized:
+			busy = false
+			submit.disabled = false
+			feedback.text = "小镇尚未同步，请稍后重试"
+			return
+		# Wait for an ongoing poll before flushing position; two overlapping
+		# writes could otherwise make an older snapshot snap the resident back.
+		while syncing_generation == generation and generation == map_generation:
+			await get_tree().process_frame
+		if generation != map_generation or modal != active_modal:
+			busy = false
+			return
+		if is_instance_valid(town_view) and town_view.has_pending_position():
+			var position := town_view.resident_position
+			var update := await api.update_presence(position)
+			if generation != map_generation:
+				busy = false
+				return
+			if not update.ok:
+				busy = false
+				if is_instance_valid(submit):
+					submit.disabled = false
+					feedback.text = str(update.message)
+				return
+			town_view.confirm_position(position)
+		var result := await api.send_bubble(message)
+		busy = false
+		if generation != map_generation or modal != active_modal or not is_instance_valid(submit):
+			return
+		if result.ok:
+			_close_modal()
+			_show_toast("气泡已发送，附近的居民可以看到")
+			_sync_town()
+		else:
+			submit.disabled = false
+			feedback.text = str(result.message)
+	)
+	body.add_child(submit)
+
+
 func _show_resident_panel() -> void:
 	var body := _open_modal("居民状态 · %s" % str(resident.get("displayName", "居民")))
 	for item in [
@@ -383,6 +504,7 @@ func _show_resident_panel() -> void:
 
 func _show_goal_panel() -> void:
 	var body := _open_modal("给居民安排今日目标")
+	var active_modal := modal
 	var hint := Label.new()
 	hint.text = "居民会在后续行动时段参考你的安排。"
 	hint.add_theme_color_override("font_color", INK)
@@ -400,6 +522,8 @@ func _show_goal_panel() -> void:
 		submit.disabled = true
 		var result := await api.set_goal(input.text.strip_edges())
 		busy = false
+		if not is_instance_valid(submit) or modal != active_modal:
+			return
 		if result.ok:
 			_close_modal()
 			_show_toast("目标已记录，将从下一个行动时段生效")
@@ -412,12 +536,13 @@ func _show_goal_panel() -> void:
 
 func _show_report_panel() -> void:
 	var body := _open_modal("居民经历 · 今日")
+	var active_modal := modal
 	var loading := Label.new()
 	loading.text = "正在翻阅居民日记…"
 	loading.add_theme_color_override("font_color", INK)
 	body.add_child(loading)
 	var result := await api.get_today_report()
-	if not is_instance_valid(body):
+	if not is_instance_valid(body) or modal != active_modal:
 		return
 	loading.queue_free()
 	if not result.ok:
@@ -446,6 +571,7 @@ func _show_leave_panel() -> void:
 	logout.pressed.connect(func() -> void:
 		session.clear()
 		api.access_token = ""
+		api.refresh_token = ""
 		_show_auth()
 	)
 	body.add_child(logout)
