@@ -1,0 +1,42 @@
+{
+  "idle-s": {
+    "row": 0,
+    "frames": 4,
+    "seconds": 0.2
+  },
+  "idle-se": {
+    "row": 1,
+    "frames": 4,
+    "seconds": 0.2
+  },
+  "idle-ne": {
+    "row": 2,
+    "frames": 4,
+    "seconds": 0.2
+  },
+  "idle-n": {
+    "row": 3,
+    "frames": 4,
+    "seconds": 0.2
+  },
+  "walk-s": {
+    "row": 4,
+    "frames": 8,
+    "seconds": 0.1
+  },
+  "walk-se": {
+    "row": 5,
+    "frames": 8,
+    "seconds": 0.1
+  },
+  "walk-ne": {
+    "row": 6,
+    "frames": 8,
+    "seconds": 0.1
+  },
+  "walk-n": {
+    "row": 7,
+    "frames": 8,
+    "seconds": 0.1
+  }
+}

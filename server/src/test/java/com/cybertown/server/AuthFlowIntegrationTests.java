@@ -81,6 +81,7 @@ class AuthFlowIntegrationTests {
                 "/api/reports/today", HttpMethod.GET, new HttpEntity<>(headers));
         assertThat(report.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(report.getBody()).containsEntry("goal", "今天努力赚钱");
+        assertThat(report.getBody()).containsEntry("constraints", List.of("不要透支精力"));
         assertThat((List<?>) report.getBody().get("actions")).hasSize(1);
 
         ResponseEntity<Map<String, Object>> refreshed = post(

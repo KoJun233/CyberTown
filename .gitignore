@@ -9,6 +9,10 @@ client/.godot/
 client/android/
 client/build/
 
+# Asset preparation tools
+__pycache__/
+*.py[cod]
+
 # Spring Boot / SQLite
 server/target/
 server/*.db
