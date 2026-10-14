@@ -1,3 +1,4 @@
+﻿# Keep the UTF-8 BOM so Windows PowerShell 5.1 can read the Chinese messages.
 param(
     [int]$Port = 18080,
     [string]$DatabasePath = '',
